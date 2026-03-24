@@ -34,6 +34,8 @@ def get_ttp_keys():
                 f.read(),
                 password=None
             )
+        if cert.not_valid_after_utc < datetime.now(timezone.utc):
+            return generate_ttp_keys()
         return key, cert
 
 
