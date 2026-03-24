@@ -1,9 +1,13 @@
-import socket
-import threading
 import json
+import socket
 import datetime
+import threading
+from generator import get_ttp_keys
 
-HOST, PORT = "0.0.0.0", 9000
+
+HOST, PORT = '0.0.0.0', 9000
+TTP_PRIVATE_KEY, TTP_CERT = get_ttp_keys()
+TTP_PUBLIC_KEY = TTP_PRIVATE_KEY.public_key()
 
 
 def log(msg: str):
@@ -14,7 +18,6 @@ def handle_request(data: dict) -> dict:
     log("client has sent something")
     return {"status": "ok", "echo": data}
     
-
 
 def handle_client(conn: socket.socket, addr):
     try:
@@ -46,6 +49,7 @@ def main():
             conn, addr = s.accept()
             t = threading.Thread(target=handle_client, args=(conn, addr), daemon=True)
             t.start()
+
 
 if __name__ == "__main__":
     main()
