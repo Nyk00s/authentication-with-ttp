@@ -34,7 +34,7 @@ def get_ttp_keys():
                 f.read(),
                 password=None
             )
-        return cert, key
+        return key, cert
 
 
 def generate_ttp_keys():
