@@ -1,21 +1,71 @@
 import json
 import socket
-import datetime
 import threading
-from generator import get_ttp_keys
+from cryptography import x509
+from cryptography.x509.oid import NameOID
+from cryptography.hazmat.primitives import hashes
+from datetime import datetime, timezone, timedelta
+from generator import get_ttp_keys, get_public_key_pem, get_cert_pem, get_public_key_from_pem
 
 
 HOST, PORT = '0.0.0.0', 9000
 TTP_PRIVATE_KEY, TTP_CERT = get_ttp_keys()
 TTP_PUBLIC_KEY = TTP_PRIVATE_KEY.public_key()
+REGISTERED_ENTITIES = {}
 
 
 def log(msg: str):
-    print(f"[{datetime.datetime.now().strftime('%d.%m.%y %H:%M:%S')}] " + msg)
+    print(f"[{datetime.now().strftime('%d.%m.%y %H:%M:%S')}] " + msg)
+
+
+def handle_register(data: dict) -> dict:
+    if data.get('ID') in REGISTERED_ENTITIES:
+        return {
+            'status': 'error',
+            'message': 'id exists'
+        }
+    else:
+        name = x509.Name(
+            [
+                x509.NameAttribute(NameOID.COUNTRY_NAME, "PL"),
+                x509.NameAttribute(NameOID.COMMON_NAME, data['ID']),
+            ]
+        )
+        cert = (x509.CertificateBuilder()
+                .subject_name(name)
+                .issuer_name(TTP_CERT.subject)
+                .public_key(get_public_key_from_pem(data['public_key'].encode()))
+                .serial_number(x509.random_serial_number())
+                .not_valid_before(datetime.now(timezone.utc))
+                .not_valid_after(datetime.now(timezone.utc) + timedelta(days=365))
+                .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+                .sign(TTP_PRIVATE_KEY, hashes.SHA256())
+                )
+        cert_pem = get_cert_pem(cert)
+        REGISTERED_ENTITIES[data['ID']] = {
+            "password": data['password'],
+            "certificate": cert_pem,
+            "public_key": data['public_key']
+        }
+        return {
+            'status': 'ok',
+            'cert': cert_pem
+        }
 
 
 def handle_request(data: dict) -> dict:
-    log("client has sent something")
+
+    action = data.get('action')
+
+    if action == 'get_ttp_public_key':
+        return {
+            "status": "ok",
+            "ttp_public_key": get_public_key_pem(TTP_PUBLIC_KEY),
+            "ttp_cert": get_cert_pem(TTP_CERT)
+        }
+    elif action == 'register':
+        return handle_register(data)
+
     return {"status": "ok", "echo": data}
     
 

@@ -8,6 +8,25 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 
 
+def get_public_key_pem(public_key):
+    return public_key.public_bytes(
+        serialization.Encoding.PEM,
+        serialization.PublicFormat.SubjectPublicKeyInfo
+    ).decode()
+
+
+def get_cert_pem(cert):
+    return cert.public_bytes(
+        serialization.Encoding.PEM
+    ).decode()
+
+
+def get_public_key_from_pem(public_key_pem):
+    return serialization.load_pem_public_key(
+        public_key_pem
+    )
+
+
 def save_key_and_cert(key, cert):
     with open('key.pem', 'wb') as f:
         f.write(
