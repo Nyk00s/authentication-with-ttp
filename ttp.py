@@ -7,7 +7,6 @@ from cryptography.hazmat.primitives import hashes
 from datetime import datetime, timezone, timedelta
 from generator import get_ttp_keys, get_public_key_pem, get_cert_pem, get_public_key_from_pem
 
-
 HOST, PORT = '0.0.0.0', 9000
 TTP_PRIVATE_KEY, TTP_CERT = get_ttp_keys()
 TTP_PUBLIC_KEY = TTP_PRIVATE_KEY.public_key()
@@ -53,8 +52,21 @@ def handle_register(data: dict) -> dict:
         }
 
 
-def handle_request(data: dict) -> dict:
+def handle_login(data: dict) -> dict:
+    if data['ID'] in REGISTERED_ENTITIES and \
+            REGISTERED_ENTITIES[data['ID']]['password'] == data['password']:
+        return {
+            'status': 'ok',
+            'cert': REGISTERED_ENTITIES[data['ID']]['certificate']
+        }
+    else:
+        return {
+            'status': 'error',
+            'message': "id doesn't exist or wrong password"
+        }
 
+
+def handle_request(data: dict) -> dict:
     action = data.get('action')
 
     if action == 'get_ttp_public_key':
@@ -65,9 +77,11 @@ def handle_request(data: dict) -> dict:
         }
     elif action == 'register':
         return handle_register(data)
+    elif action == 'login':
+        return handle_login(data)
 
     return {"status": "ok", "echo": data}
-    
+
 
 def handle_client(conn: socket.socket, addr):
     try:
