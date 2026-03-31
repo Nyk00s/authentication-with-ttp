@@ -1,11 +1,12 @@
 import json
 import socket
+import base64
 import threading
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from datetime import datetime, timezone, timedelta
-from generator import get_ttp_keys, get_public_key_pem, get_cert_pem, get_public_key_from_pem
+from generator import get_ttp_keys, get_public_key_pem, get_cert_pem, get_public_key_from_pem, decrypt_with_private_key
 
 HOST, PORT = '0.0.0.0', 9000
 TTP_PRIVATE_KEY, TTP_CERT = get_ttp_keys()
@@ -67,7 +68,17 @@ def handle_login(data: dict) -> dict:
 
 
 def handle_authenticate_request(data: dict) -> dict:
-    pass
+    server_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data['SERVER_ID']))
+    if server_id not in REGISTERED_ENTITIES:
+        return {
+            'status': 'error',
+            'message': "server not registered"
+        }
+    else:
+        return {
+            'status': 'ok',
+            'message': 'server has been authenticated'
+        }
 
 
 def handle_request(data: dict) -> dict:
