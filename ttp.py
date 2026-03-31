@@ -66,6 +66,10 @@ def handle_login(data: dict) -> dict:
         }
 
 
+def handle_authenticate_request(data: dict) -> dict:
+    pass
+
+
 def handle_request(data: dict) -> dict:
     action = data.get('action')
 
@@ -79,6 +83,8 @@ def handle_request(data: dict) -> dict:
         return handle_register(data)
     elif action == 'login':
         return handle_login(data)
+    elif action == 'authenticate_request':
+        return handle_authenticate_request(data)
 
     return {"status": "ok", "echo": data}
 
