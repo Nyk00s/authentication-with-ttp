@@ -52,7 +52,7 @@ def get_public_key_from_pem(public_key_pem):
 
 
 def save_key_and_cert(key, cert):
-    with open('key.pem', 'wb') as f:
+    with open('ttp/key.pem', 'wb') as f:
         f.write(
             key.private_bytes(
                 encoding=serialization.Encoding.PEM,
@@ -60,19 +60,19 @@ def save_key_and_cert(key, cert):
                 encryption_algorithm=serialization.NoEncryption()
             )
         )
-    with open('cert.pem', 'wb') as f:
+    with open('ttp/cert.pem', 'wb') as f:
         f.write(
             cert.public_bytes(serialization.Encoding.PEM)
         )
 
 
 def get_ttp_keys():
-    if not os.path.exists('cert.pem') or not os.path.exists('key.pem'):
+    if not os.path.exists('ttp/cert.pem') or not os.path.exists('ttp/key.pem'):
         return generate_ttp_keys()
     else:
-        with open('cert.pem', 'rb') as f:
+        with open('ttp/cert.pem', 'rb') as f:
             cert = x509.load_pem_x509_certificate(f.read())
-        with open('key.pem', 'rb') as f:
+        with open('ttp/key.pem', 'rb') as f:
             key = serialization.load_pem_private_key(
                 f.read(),
                 password=None

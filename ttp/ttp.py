@@ -1,6 +1,7 @@
 import json
 import socket
 import base64
+import logging
 import threading
 from cryptography import x509
 from cryptography.x509.oid import NameOID
@@ -8,14 +9,14 @@ from cryptography.hazmat.primitives import hashes
 from datetime import datetime, timezone, timedelta
 from generator import get_ttp_keys, get_public_key_pem, get_cert_pem, get_public_key_from_pem, decrypt_with_private_key
 
+logging.basicConfig(filename='ttp.log', level=logging.INFO, filemode='w',
+                    format="[%(asctime)s] :: %(levelname)s :: %(message)s")
+
+
 HOST, PORT = '0.0.0.0', 9000
 TTP_PRIVATE_KEY, TTP_CERT = get_ttp_keys()
 TTP_PUBLIC_KEY = TTP_PRIVATE_KEY.public_key()
 REGISTERED_ENTITIES = {}
-
-
-def log(msg: str):
-    print(f"[{datetime.now().strftime('%d.%m.%y %H:%M:%S')}] " + msg)
 
 
 def handle_register(data: dict) -> dict:
@@ -114,8 +115,8 @@ def handle_client(conn: socket.socket, addr):
         json_data = json.loads(bytes_data.decode().strip())
         response = handle_request(json_data)
         conn.sendall((json.dumps(response) + '\n').encode())
-    except Exception as e:
-        log(f"Error {addr} : {e}")
+    except Exception:
+        logging.exception(f'Error: {addr}')
     finally:
         conn.close()
 
