@@ -4,7 +4,7 @@ import logging
 import threading
 from generator import get_keys
 
-logging.basicConfig(filename='server.log', level=logging.INFO, filemode='w',
+logging.basicConfig(filename='server.log', level=logging.DEBUG, filemode='w',
                     format="[%(asctime)s] :: %(levelname)s :: %(message)s")
 console_handler = logging.StreamHandler()
 formatter = logging.Formatter("[%(asctime)s] :: %(levelname)s :: %(message)s")
@@ -93,10 +93,21 @@ def listen_for_requests():
             t.start()
 
 
+def chain_events():
+    data_from_ttp = send_to_ttp(
+        {
+            'action': 'get_ttp_public_key'
+        }
+    )
+    logging.debug('get_ttp_public_key: ' + str(data_from_ttp))
+
+
 def main():
     logging.info("Start server")
-    listener = threading.Thread(target=listen_for_requests, daemon=True)
-    listener.start()
+    request_listener = threading.Thread(target=listen_for_requests)
+    chain_events_thread = threading.Thread(target=chain_events, daemon=True)
+    request_listener.start()
+    chain_events_thread.start()
 
 
 if __name__ == "__main__":

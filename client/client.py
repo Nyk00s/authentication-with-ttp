@@ -1,10 +1,13 @@
 import json
 import socket
+import base64
+import hashlib
 import logging
 import threading
-from generator import get_keys
+from generator import get_keys, encrypt_with_public_key, get_public_key_pem
 
-logging.basicConfig(filename='client.log', level=logging.INFO, filemode='w',
+
+logging.basicConfig(filename='client.log', level=logging.DEBUG, filemode='w',
                     format="[%(asctime)s] :: %(levelname)s :: %(message)s")
 console_handler = logging.StreamHandler()
 formatter = logging.Formatter("[%(asctime)s] :: %(levelname)s :: %(message)s")
@@ -22,6 +25,7 @@ SERVER_HOST = '127.0.0.1'
 SERVER_PORT = 9001
 
 CLIENT_ID = 'fcce5e8d-ee7d-471c-815f-8a34d8a9106e'
+CLIENT_PASSWORD = 'f75bf148-b1c1-4652-9dd9-13c8ecddc40d'
 CLIENT_PRIVATE_KEY, CLIENT_PUBLIC_KEY = get_keys()
 logging.info('Got keys')
 
@@ -46,7 +50,8 @@ def send_to_ttp(data):
                 raise ConnectionError("Empty response from TTP")
 
             string_data = received_bytes.decode().strip()
-            logging.info(f'Data received from TTP: {string_data}')
+            logging.info('Data from TTP received')
+            logging.debug(f'Data received from TTP: {string_data}')
             return json.loads(string_data)
     except (socket.timeout, socket.error) as e:
         logging.error(f'Network error while communicating with TTP: {e}')
@@ -79,7 +84,8 @@ def send_to_server(data):
                 raise ConnectionError("Empty response from server")
 
             string_data = received_bytes.decode().strip()
-            logging.info(f'Data received from server: {string_data}')
+            logging.info('Data from server received')
+            logging.debug(f'Data received from server: {string_data}')
             return json.loads(string_data)
     except (socket.timeout, socket.error) as e:
         logging.error(f'Network error while communicating with server: {e}')
@@ -133,15 +139,47 @@ def listen_for_requests():
 
 
 def chain_events():
-    send_to_ttp(
+    data_from_ttp = send_to_ttp(
         {
             'action': 'get_ttp_public_key'
         }
     )
+    logging.debug('get_ttp_public_key: ' + str(data_from_ttp))
+
+    if data_from_ttp['status'] == 'error':
+        raise Exception("Got wrong data from ttp")
+
+    ttp_public_key_pem = data_from_ttp['ttp_public_key']
+    ttp_cert = data_from_ttp['ttp_cert']
+    encrypted_id = encrypt_with_public_key(ttp_public_key_pem.encode(), CLIENT_ID.encode())
+    client_public_key_pem = get_public_key_pem(CLIENT_PUBLIC_KEY)
+    hashed_password = hashlib.sha256(CLIENT_PASSWORD.encode()).hexdigest()
+
+    data_from_ttp = send_to_ttp(
+        {
+            'action':  'register',
+            'ID': base64.b64encode(encrypted_id).decode(),
+            'password': hashed_password,
+            'public_key': client_public_key_pem
+        }
+    )
+    logging.debug('register: ' + str(data_from_ttp))
+
+    if data_from_ttp['status'] == 'error' and data_from_ttp['message'] == 'id exists':
+        data_from_ttp = send_to_ttp(
+            {
+                'action': 'login',
+                'ID': base64.b64encode(encrypted_id).decode(),
+                'password': hashed_password,
+                'public_key': client_public_key_pem
+            }
+        )
+        logging.debug('login: ' + str(data_from_ttp))
+
 
 
 def main():
-    request_listener = threading.Thread(target=listen_for_requests, daemon=True)
+    request_listener = threading.Thread(target=listen_for_requests)
     chain_events_thread = threading.Thread(target=chain_events, daemon=True)
     request_listener.start()
     chain_events_thread.start()

@@ -14,7 +14,7 @@ from generator import get_keys, get_public_key_pem, get_cert_pem, get_public_key
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-logging.basicConfig(filename='ttp.log', level=logging.INFO, filemode='w',
+logging.basicConfig(filename='ttp.log', level=logging.DEBUG, filemode='w',
                     format="[%(asctime)s] :: %(levelname)s :: %(message)s")
 console_handler = logging.StreamHandler()
 formatter = logging.Formatter("[%(asctime)s] :: %(levelname)s :: %(message)s")
@@ -29,7 +29,8 @@ REGISTERED_ENTITIES = {}
 
 
 def handle_register(data: dict) -> dict:
-    if data.get('ID') in REGISTERED_ENTITIES:
+    decrypted_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data['ID'])).decode()
+    if decrypted_id in REGISTERED_ENTITIES:
         return {
             'status': 'error',
             'message': 'id exists'
@@ -38,7 +39,7 @@ def handle_register(data: dict) -> dict:
         name = x509.Name(
             [
                 x509.NameAttribute(NameOID.COUNTRY_NAME, "PL"),
-                x509.NameAttribute(NameOID.COMMON_NAME, data['ID']),
+                x509.NameAttribute(NameOID.COMMON_NAME, decrypted_id),
             ]
         )
         cert = (x509.CertificateBuilder()
@@ -52,7 +53,7 @@ def handle_register(data: dict) -> dict:
                 .sign(TTP_PRIVATE_KEY, hashes.SHA256())
                 )
         cert_pem = get_cert_pem(cert)
-        REGISTERED_ENTITIES[data['ID']] = {
+        REGISTERED_ENTITIES[decrypted_id] = {
             "password": data['password'],
             "certificate": cert_pem,
             "public_key": data['public_key']
@@ -64,11 +65,12 @@ def handle_register(data: dict) -> dict:
 
 
 def handle_login(data: dict) -> dict:
-    if data['ID'] in REGISTERED_ENTITIES and \
-            REGISTERED_ENTITIES[data['ID']]['password'] == data['password']:
+    decrypted_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data['ID'])).decode()
+    if decrypted_id in REGISTERED_ENTITIES and \
+            REGISTERED_ENTITIES[decrypted_id]['password'] == data['password']:
         return {
             'status': 'ok',
-            'cert': REGISTERED_ENTITIES[data['ID']]['certificate']
+            'cert': REGISTERED_ENTITIES[decrypted_id]['certificate']
         }
     else:
         return {
@@ -78,7 +80,7 @@ def handle_login(data: dict) -> dict:
 
 
 def handle_authenticate_request(data: dict) -> dict:
-    server_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data['SERVER_ID']))
+    server_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data['SERVER_ID'])).decode()
     if server_id not in REGISTERED_ENTITIES:
         return {
             'status': 'error',
@@ -127,7 +129,9 @@ def handle_client(conn: socket.socket, addr):
                 break
 
         json_data = json.loads(bytes_data.decode().strip())
+        logging.debug(f"request ({addr}): " + str(json_data))
         response = handle_request(json_data)
+        logging.debug(f"response ({addr}): " + str(response))
         conn.sendall((json.dumps(response) + '\n').encode())
     except Exception:
         logging.exception(f'Error: {addr}')
