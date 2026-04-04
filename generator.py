@@ -51,8 +51,8 @@ def get_public_key_from_pem(public_key_pem):
     )
 
 
-def save_key_and_cert(key, cert):
-    with open('ttp/key.pem', 'wb') as f:
+def save_private_key(key):
+    with open('key.pem', 'wb') as f:
         f.write(
             key.private_bytes(
                 encoding=serialization.Encoding.PEM,
@@ -60,51 +60,66 @@ def save_key_and_cert(key, cert):
                 encryption_algorithm=serialization.NoEncryption()
             )
         )
-    with open('ttp/cert.pem', 'wb') as f:
+
+
+def save_cert(cert):
+    with open('cert.pem', 'wb') as f:
         f.write(
             cert.public_bytes(serialization.Encoding.PEM)
         )
 
 
-def get_ttp_keys():
-    if not os.path.exists('ttp/cert.pem') or not os.path.exists('ttp/key.pem'):
-        return generate_ttp_keys()
+def get_keys():
+    if not os.path.exists('key.pem'):
+        return generate_keys()
     else:
-        with open('ttp/cert.pem', 'rb') as f:
-            cert = x509.load_pem_x509_certificate(f.read())
-        with open('ttp/key.pem', 'rb') as f:
+        with open('key.pem', 'rb') as f:
             key = serialization.load_pem_private_key(
                 f.read(),
                 password=None
             )
-        if cert.not_valid_after_utc < datetime.now(timezone.utc):
-            return generate_ttp_keys()
-        return key, cert
+        return key, key.public_key()
 
 
-def generate_ttp_keys():
+def generate_keys():
     private_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048,
         backend=default_backend()
     )
+    save_private_key(private_key)
+    return private_key, private_key.public_key()
 
+
+def get_cert(private_key, public_key, name_attr):
+    if not os.path.exists('cert.pem'):
+        return generate_cert(private_key, public_key, name_attr)
+    else:
+        with open('cert.pem', 'rb') as f:
+            cert = x509.load_pem_x509_certificate(
+                f.read(),
+                default_backend()
+            )
+        return cert
+
+
+def generate_cert(private_key, public_key, name_attr):
     name = x509.Name(
         [
             x509.NameAttribute(NameOID.COUNTRY_NAME, "PL"),
-            x509.NameAttribute(NameOID.COMMON_NAME, "TTP-CA"),
+            x509.NameAttribute(NameOID.COMMON_NAME, name_attr),
         ]
     )
 
     cert = (x509.CertificateBuilder()
             .subject_name(name)
             .issuer_name(name)
-            .public_key(private_key.public_key())
+            .public_key(public_key)
             .serial_number(x509.random_serial_number())
             .not_valid_before(datetime.now(timezone.utc))
             .not_valid_after(datetime.now(timezone.utc) + timedelta(days=365))
             .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
             .sign(private_key, hashes.SHA256())
             )
-    save_key_and_cert(private_key, cert)
-    return private_key, cert
+    save_cert(cert)
+    return cert

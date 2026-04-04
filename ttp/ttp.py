@@ -1,3 +1,5 @@
+import os
+import sys
 import json
 import socket
 import base64
@@ -7,15 +9,22 @@ from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from datetime import datetime, timezone, timedelta
-from generator import get_ttp_keys, get_public_key_pem, get_cert_pem, get_public_key_from_pem, decrypt_with_private_key
+from generator import get_keys, get_public_key_pem, get_cert_pem, get_public_key_from_pem, decrypt_with_private_key, \
+    get_cert
 
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 logging.basicConfig(filename='ttp.log', level=logging.INFO, filemode='w',
                     format="[%(asctime)s] :: %(levelname)s :: %(message)s")
+console_handler = logging.StreamHandler()
+formatter = logging.Formatter("[%(asctime)s] :: %(levelname)s :: %(message)s")
+console_handler.setFormatter(formatter)
+logging.getLogger('').addHandler(console_handler)
 
 
 HOST, PORT = '0.0.0.0', 9000
-TTP_PRIVATE_KEY, TTP_CERT = get_ttp_keys()
-TTP_PUBLIC_KEY = TTP_PRIVATE_KEY.public_key()
+TTP_PRIVATE_KEY, TTP_PUBLIC_KEY = get_keys()
+TTP_CERT = get_cert(TTP_PRIVATE_KEY, TTP_PUBLIC_KEY, 'TTP_CA')
 REGISTERED_ENTITIES = {}
 
 
@@ -97,8 +106,13 @@ def handle_request(data: dict) -> dict:
         return handle_login(data)
     elif action == 'authenticate_request':
         return handle_authenticate_request(data)
-
-    return {"status": "ok", "echo": data}
+    else:
+        logging.warning(f'Got unknown request: {action}')
+        return {
+            "status": "error",
+            "message": f"Unknown request: {action}",
+            "echo": data
+        }
 
 
 def handle_client(conn: socket.socket, addr):
@@ -122,7 +136,7 @@ def handle_client(conn: socket.socket, addr):
 
 
 def main():
-    print("start ttp")
+    logging.info("Start TTP")
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((HOST, PORT))

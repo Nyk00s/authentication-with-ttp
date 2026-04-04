@@ -2,33 +2,55 @@ import json
 import socket
 import logging
 import threading
+from generator import get_keys
 
 logging.basicConfig(filename='server.log', level=logging.INFO, filemode='w',
                     format="[%(asctime)s] :: %(levelname)s :: %(message)s")
+console_handler = logging.StreamHandler()
+formatter = logging.Formatter("[%(asctime)s] :: %(levelname)s :: %(message)s")
+console_handler.setFormatter(formatter)
+logging.getLogger('').addHandler(console_handler)
 
 
 TTP_HOST = "127.0.0.1"
 TTP_PORT = 9000
 HOST = "0.0.0.0"
 PORT = 9001
+SERVER_ID = '92123f60-57a3-4511-9f9a-d83163963ee5'
+SERVER_PRIVATE_KEY, SERVER_PUBLIC_KEY = get_keys()
 
 
 def send_to_ttp(data):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect((TTP_HOST, TTP_PORT))
-    sock.sendall((json.dumps(data) + '\n').encode())
-    received_bytes = b''
-    while True:
-        chunk = sock.recv(4096)
-        if not chunk:
-            break
-        received_bytes += chunk
-        if received_bytes.endswith(b'\n'):
-            break
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(10.0)
+            sock.connect((TTP_HOST, TTP_PORT))
+            sock.sendall((json.dumps(data) + '\n').encode())
+            logging.info(f"Request \'{data.get('action')}\' has been sent to ttp({TTP_HOST})")
+            received_bytes = b''
+            while True:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                received_bytes += chunk
+                if received_bytes.endswith(b'\n'):
+                    break
 
-    json_data = json.loads(received_bytes.decode().strip())
-    sock.close()
-    return json_data
+            if not received_bytes:
+                raise ConnectionError("Empty response from TTP")
+
+            string_data = received_bytes.decode().strip()
+            logging.info(f'Data received from TTP: {string_data}')
+            return json.loads(string_data)
+    except (socket.timeout, socket.error) as e:
+        logging.error(f'Network error while communicating with TTP: {e}')
+        return {'status': 'error', 'message': f'Network error: {str(e)}'}
+    except json.JSONDecodeError:
+        logging.error(f'Invalid JSON received from TTP: {received_bytes}')
+        return {'status': 'error', 'message': 'Invalid JSON response'}
+    except Exception as e:
+        logging.exception('Unexpected error while communicating with TTP')
+        return {'status': 'error', 'message': str(e)}
 
 
 def handle_request(json_data):
@@ -59,8 +81,8 @@ def handle_client(conn, addr):
         conn.close()
 
 
-def main():
-    print("start server")
+def listen_for_requests():
+    logging.info("Start server requests listener")
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((HOST, PORT))
@@ -69,6 +91,12 @@ def main():
             conn, addr = s.accept()
             t = threading.Thread(target=handle_client, args=(conn, addr), daemon=True)
             t.start()
+
+
+def main():
+    logging.info("Start server")
+    listener = threading.Thread(target=listen_for_requests, daemon=True)
+    listener.start()
 
 
 if __name__ == "__main__":
