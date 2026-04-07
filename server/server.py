@@ -4,7 +4,7 @@ import socket
 import hashlib
 import logging
 import threading
-from generator import get_keys, encrypt_with_public_key, get_public_key_pem
+from generator import get_keys, encrypt_with_public_key, get_public_key_pem, decrypt_with_private_key
 
 logging.basicConfig(filename='server.log', level=logging.DEBUG, filemode='w',
                     format="[%(asctime)s] :: %(levelname)s :: %(message)s")
@@ -21,6 +21,8 @@ PORT = 9001
 SERVER_ID = '92123f60-57a3-4511-9f9a-d83163963ee5'
 SERVER_PASSWORD = '202fe311-559c-4245-9135-188f772453c4'
 SERVER_PRIVATE_KEY, SERVER_PUBLIC_KEY = get_keys()
+TTP_PUBLIC_KEY_PEM = ''
+SESSION_KEY = ''
 
 
 def send_to_ttp(data):
@@ -57,11 +59,45 @@ def send_to_ttp(data):
 
 
 def handle_request(json_data):
-    logging.info(json_data['action'])
-    return {
-        'status': 'ok',
-        'echo': json_data
-    }
+    global SESSION_KEY
+    action = json_data.get('action')
+
+    if action == 'server_authenticated':
+        logging.info("Server has been authenticated")
+        return {
+            'status': 'ok'
+        }
+    elif action == 'session_key':
+        logging.info('Server got session key from ttp')
+        SESSION_KEY = decrypt_with_private_key(SERVER_PRIVATE_KEY, base64.b64decode(json_data['session_key']))
+        return {
+            'status': 'ok'
+        }
+    elif action == 'request_service':
+        if not TTP_PUBLIC_KEY_PEM:
+            return {
+                'status': 'error',
+                'message': "Server doesn't have ttp public key"
+            }
+        encrypted_server_id = encrypt_with_public_key(TTP_PUBLIC_KEY_PEM.encode(), SERVER_ID.encode())
+        send_to_ttp(
+            {
+                'action': 'authenticate_request',
+                'USER_ID': json_data['USER_ID'],
+                'SERVER_ID': base64.b64encode(encrypted_server_id).decode()
+            }
+        )
+        return {
+            'status': 'ok',
+            'message': "Server has been authenticated"
+        }
+    else:
+        logging.info(f"Server got unknown request: {action}")
+        return {
+            'status': 'error',
+            'message': 'request unknown',
+            'echo': json_data
+        }
 
 
 def handle_client(conn, addr):
@@ -97,6 +133,7 @@ def listen_for_requests():
 
 
 def chain_events():
+    global TTP_PUBLIC_KEY_PEM
     data_from_ttp = send_to_ttp(
         {
             'action': 'get_ttp_public_key'
@@ -107,9 +144,9 @@ def chain_events():
     if data_from_ttp['status'] == 'error':
         raise Exception("Got wrong data from ttp")
 
-    ttp_public_key_pem = data_from_ttp['ttp_public_key']
+    TTP_PUBLIC_KEY_PEM = data_from_ttp['ttp_public_key']
     ttp_cert = data_from_ttp['ttp_cert']
-    encrypted_id = encrypt_with_public_key(ttp_public_key_pem.encode(), SERVER_ID.encode())
+    encrypted_id = encrypt_with_public_key(TTP_PUBLIC_KEY_PEM.encode(), SERVER_ID.encode())
     client_public_key_pem = get_public_key_pem(SERVER_PUBLIC_KEY)
     hashed_password = hashlib.sha256(SERVER_PASSWORD.encode()).hexdigest()
 

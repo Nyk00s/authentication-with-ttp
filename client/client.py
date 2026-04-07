@@ -4,7 +4,7 @@ import base64
 import hashlib
 import logging
 import threading
-from generator import get_keys, encrypt_with_public_key, get_public_key_pem
+from generator import get_keys, encrypt_with_public_key, get_public_key_pem, decrypt_with_private_key
 
 
 logging.basicConfig(filename='client.log', level=logging.DEBUG, filemode='w',
@@ -27,6 +27,8 @@ SERVER_PORT = 9001
 CLIENT_ID = 'fcce5e8d-ee7d-471c-815f-8a34d8a9106e'
 CLIENT_PASSWORD = 'f75bf148-b1c1-4652-9dd9-13c8ecddc40d'
 CLIENT_PRIVATE_KEY, CLIENT_PUBLIC_KEY = get_keys()
+SESSION_KEY = ''
+TTP_PUBLIC_KEY_PEM = ''
 logging.info('Got keys')
 
 
@@ -98,11 +100,44 @@ def send_to_server(data):
         return {'status': 'error', 'message': str(e)}
 
 
+def handle_authenticate_user(data):
+    if not TTP_PUBLIC_KEY_PEM:
+        return {
+            'status': 'error',
+            'message': "User doesn't have ttp public key"
+        }
+    else:
+        encrypted_client_id = encrypt_with_public_key(TTP_PUBLIC_KEY_PEM.encode(), CLIENT_ID.encode())
+        return {
+            'status': 'ok',
+            'USER_ID': base64.b64encode(encrypted_client_id).decode()
+        }
+
+
 def handle_request(data):
-    return {
-        'status': 'ok',
-        'echo': data
-    }
+    global SESSION_KEY
+    action = data.get('action')
+
+    if action == "server_authenticated":
+        logging.info("Server has been authenticated")
+        return {
+            'status': 'ok'
+        }
+    elif action == 'session_key':
+        logging.info('Client got session key from ttp')
+        SESSION_KEY = decrypt_with_private_key(CLIENT_PRIVATE_KEY, base64.b64decode(data['session_key']))
+        return {
+            'status': 'ok'
+        }
+    elif action == 'authenticate_user':
+        return handle_authenticate_user(data)
+    else:
+        logging.info(f"Client got unknown request: {action}")
+        return {
+            'status': 'error',
+            'message': 'request unknown',
+            'echo': data
+        }
 
 
 def handle_client(conn, addr):
@@ -139,6 +174,7 @@ def listen_for_requests():
 
 
 def chain_events():
+    global TTP_PUBLIC_KEY_PEM
     data_from_ttp = send_to_ttp(
         {
             'action': 'get_ttp_public_key'
@@ -149,9 +185,9 @@ def chain_events():
     if data_from_ttp['status'] == 'error':
         raise Exception("Got wrong data from ttp")
 
-    ttp_public_key_pem = data_from_ttp['ttp_public_key']
+    TTP_PUBLIC_KEY_PEM = data_from_ttp['ttp_public_key']
     ttp_cert = data_from_ttp['ttp_cert']
-    encrypted_id = encrypt_with_public_key(ttp_public_key_pem.encode(), CLIENT_ID.encode())
+    encrypted_id = encrypt_with_public_key(TTP_PUBLIC_KEY_PEM.encode(), CLIENT_ID.encode())
     client_public_key_pem = get_public_key_pem(CLIENT_PUBLIC_KEY)
     hashed_password = hashlib.sha256(CLIENT_PASSWORD.encode()).hexdigest()
 

@@ -1,8 +1,8 @@
 import os
-from datetime import datetime, timezone, timedelta
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
+from datetime import datetime, timezone, timedelta
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -21,7 +21,7 @@ def encrypt_with_public_key(public_key_pem, data: bytes):
     )
 
 
-def decrypt_with_private_key(private_key, ciphertext_b64: str):
+def decrypt_with_private_key(private_key, ciphertext_b64):
     return private_key.decrypt(
         ciphertext_b64,
         padding.OAEP(
