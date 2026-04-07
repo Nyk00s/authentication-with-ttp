@@ -10,7 +10,7 @@ from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from datetime import datetime, timezone, timedelta
 from generator import get_keys, get_public_key_pem, get_cert_pem, get_public_key_from_pem, decrypt_with_private_key, \
-    get_cert
+    get_cert, encrypt_with_public_key
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -56,7 +56,9 @@ def handle_register(data: dict) -> dict:
         REGISTERED_ENTITIES[decrypted_id] = {
             "password": data['password'],
             "certificate": cert_pem,
-            "public_key": data['public_key']
+            "public_key": data['public_key'],
+            "HOST": data['HOST'],
+            "PORT": data['PORT']
         }
         return {
             'status': 'ok',
@@ -79,17 +81,94 @@ def handle_login(data: dict) -> dict:
         }
 
 
+def send_request(data):
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(10.0)
+            sock.connect((data['HOST'], int(data['PORT'])))
+            sock.sendall((json.dumps(data) + '\n').encode())
+            logging.info(f"Request \'{data.get('action')}\' has been sent to ({data['HOST']})")
+            received_bytes = b''
+            while True:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                received_bytes += chunk
+                if received_bytes.endswith(b'\n'):
+                    break
+
+            if not received_bytes:
+                raise ConnectionError(f"Empty response from {data['HOST']}")
+
+            string_data = received_bytes.decode().strip()
+            logging.info(f'Data from {data['HOST']} received')
+            logging.debug(f'Data received from {data["HOST"]}: {string_data}')
+            return json.loads(string_data)
+    except (socket.timeout, socket.error) as e:
+        logging.error(f'Network error while communicating with {data["HOST"]}: {e}')
+        return {'status': 'error', 'message': f'Network error: {str(e)}'}
+    except json.JSONDecodeError:
+        logging.error(f'Invalid JSON received from {data["HOST"]}: {received_bytes}')
+        return {'status': 'error', 'message': 'Invalid JSON response'}
+    except Exception as e:
+        logging.exception(f'Unexpected error while communicating with {data["HOST"]}')
+        return {'status': 'error', 'message': str(e)}
+
+
 def handle_authenticate_request(data: dict) -> dict:
     server_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data['SERVER_ID'])).decode()
-    if server_id not in REGISTERED_ENTITIES:
+    user_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data['USER_ID'])).decode()
+    if server_id not in REGISTERED_ENTITIES or user_id not in REGISTERED_ENTITIES:
         return {
             'status': 'error',
-            'message': "server not registered"
+            'message': "server or user not registered"
         }
     else:
+        send_request({
+            'action': "server_authenticated",
+            "HOST": REGISTERED_ENTITIES[server_id]["HOST"],
+            "PORT": REGISTERED_ENTITIES[server_id]["PORT"]
+        })
+
+        data_from_user = send_request(
+            {
+                "action": "authenticate_user",
+                "HOST": REGISTERED_ENTITIES[user_id]["HOST"],
+                "PORT": REGISTERED_ENTITIES[user_id]["PORT"]
+            }
+        )
+        user_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data_from_user['USER_ID'])).decode()
+        session_key = os.urandom(32)
+
+        encrypted_user_session_key = base64.b64encode(
+            encrypt_with_public_key(
+                REGISTERED_ENTITIES[user_id]["public_key"],
+                session_key)).decode()
+        encrypted_server_session_key = base64.b64encode(
+            encrypt_with_public_key(
+                REGISTERED_ENTITIES[server_id]["public_key"],
+                session_key)).decode()
+
+        send_request(
+            {
+                'action': 'session_key',
+                'session_key': encrypted_user_session_key,
+                "HOST": REGISTERED_ENTITIES[user_id]["HOST"],
+                "PORT": REGISTERED_ENTITIES[user_id]["PORT"]
+            }
+        )
+
+        send_request(
+            {
+                'action': 'session_key',
+                'session_key': encrypted_server_session_key,
+                "HOST": REGISTERED_ENTITIES[server_id]["HOST"],
+                "PORT": REGISTERED_ENTITIES[server_id]["PORT"]
+            }
+        )
+
         return {
             'status': 'ok',
-            'message': 'server has been authenticated'
         }
 
 

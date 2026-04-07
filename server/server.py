@@ -1,8 +1,10 @@
 import json
+import base64
 import socket
+import hashlib
 import logging
 import threading
-from generator import get_keys
+from generator import get_keys, encrypt_with_public_key, get_public_key_pem
 
 logging.basicConfig(filename='server.log', level=logging.DEBUG, filemode='w',
                     format="[%(asctime)s] :: %(levelname)s :: %(message)s")
@@ -14,9 +16,10 @@ logging.getLogger('').addHandler(console_handler)
 
 TTP_HOST = "127.0.0.1"
 TTP_PORT = 9000
-HOST = "0.0.0.0"
+HOST = "127.0.0.1"
 PORT = 9001
 SERVER_ID = '92123f60-57a3-4511-9f9a-d83163963ee5'
+SERVER_PASSWORD = '202fe311-559c-4245-9135-188f772453c4'
 SERVER_PRIVATE_KEY, SERVER_PUBLIC_KEY = get_keys()
 
 
@@ -100,6 +103,38 @@ def chain_events():
         }
     )
     logging.debug('get_ttp_public_key: ' + str(data_from_ttp))
+
+    if data_from_ttp['status'] == 'error':
+        raise Exception("Got wrong data from ttp")
+
+    ttp_public_key_pem = data_from_ttp['ttp_public_key']
+    ttp_cert = data_from_ttp['ttp_cert']
+    encrypted_id = encrypt_with_public_key(ttp_public_key_pem.encode(), SERVER_ID.encode())
+    client_public_key_pem = get_public_key_pem(SERVER_PUBLIC_KEY)
+    hashed_password = hashlib.sha256(SERVER_PASSWORD.encode()).hexdigest()
+
+    data_from_ttp = send_to_ttp(
+        {
+            'action': 'register',
+            'ID': base64.b64encode(encrypted_id).decode(),
+            'password': hashed_password,
+            'public_key': client_public_key_pem,
+            'HOST': HOST,
+            'PORT': PORT
+        }
+    )
+    logging.debug('register: ' + str(data_from_ttp))
+
+    if data_from_ttp['status'] == 'error' and data_from_ttp['message'] == 'id exists':
+        data_from_ttp = send_to_ttp(
+            {
+                'action': 'login',
+                'ID': base64.b64encode(encrypted_id).decode(),
+                'password': hashed_password,
+                'public_key': client_public_key_pem
+            }
+        )
+        logging.debug('login: ' + str(data_from_ttp))
 
 
 def main():

@@ -45,7 +45,7 @@ def get_cert_pem(cert):
     ).decode()
 
 
-def get_public_key_from_pem(public_key_pem):
+def get_public_key_from_pem(public_key_pem: bytes):
     return serialization.load_pem_public_key(
         public_key_pem
     )

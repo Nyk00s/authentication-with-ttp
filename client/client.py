@@ -15,7 +15,7 @@ console_handler.setFormatter(formatter)
 logging.getLogger('').addHandler(console_handler)
 
 
-HOST = '0.0.0.0'
+HOST = '127.0.0.1'
 PORT = 8999
 
 TTP_HOST = '127.0.0.1'
@@ -160,7 +160,9 @@ def chain_events():
             'action':  'register',
             'ID': base64.b64encode(encrypted_id).decode(),
             'password': hashed_password,
-            'public_key': client_public_key_pem
+            'public_key': client_public_key_pem,
+            'HOST': HOST,
+            'PORT': PORT
         }
     )
     logging.debug('register: ' + str(data_from_ttp))
@@ -176,6 +178,14 @@ def chain_events():
         )
         logging.debug('login: ' + str(data_from_ttp))
 
+    data_from_ttp = send_to_server(
+        {
+            'action': 'authenticate_request',
+            'USER_ID': base64.b64encode(encrypted_id).decode(),
+            'HOST': HOST,
+            'PORT': PORT
+        }
+    )
 
 
 def main():
