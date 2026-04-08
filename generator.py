@@ -1,4 +1,5 @@
 import os
+import base64
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
@@ -7,6 +8,25 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+
+def aes_encrypt(session_key: bytes, message: bytes) -> str:
+    iv = os.urandom(16)
+    cipher = Cipher(algorithms.AES(session_key), modes.CBC(iv))
+    encryptor = cipher.encryptor()
+    padded = message + b' ' * (16 - len(message) % 16)
+    ct = encryptor.update(padded) + encryptor.finalize()
+    return base64.b64encode(iv + ct).decode()
+
+
+def aes_decrypt(session_key: bytes, ciphered_message: str) -> bytes:
+    ciphered_message = base64.b64decode(ciphered_message)
+    iv = ciphered_message[:16]
+    ct = ciphered_message[16:]
+    cipher = Cipher(algorithms.AES(session_key), modes.CBC(iv))
+    decryptor = cipher.decryptor()
+    return (decryptor.update(ct) + decryptor.finalize()).rstrip(b' ')
 
 
 def encrypt_with_public_key(public_key_pem, data: bytes):
@@ -46,9 +66,9 @@ def get_cert_pem(cert):
 
 
 def get_public_key_from_pem(public_key_pem: bytes):
-    return serialization.load_pem_public_key(
-        public_key_pem
-    )
+    if isinstance(public_key_pem, str):
+        public_key_pem = public_key_pem.encode()
+    return serialization.load_pem_public_key(public_key_pem)
 
 
 def save_private_key(key):

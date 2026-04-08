@@ -216,10 +216,8 @@ def chain_events():
 
     data_from_ttp = send_to_server(
         {
-            'action': 'authenticate_request',
+            'action': 'request_service',
             'USER_ID': base64.b64encode(encrypted_id).decode(),
-            'HOST': HOST,
-            'PORT': PORT
         }
     )
 
