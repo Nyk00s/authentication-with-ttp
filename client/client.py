@@ -4,7 +4,8 @@ import base64
 import hashlib
 import logging
 import threading
-from generator import get_keys, encrypt_with_public_key, get_public_key_pem, decrypt_with_private_key
+from generator import get_keys, encrypt_with_public_key, get_public_key_pem, decrypt_with_private_key, \
+    aes_encrypt, aes_decrypt
 
 
 logging.basicConfig(filename='client.log', level=logging.DEBUG, filemode='w',
@@ -28,6 +29,7 @@ CLIENT_ID = 'fcce5e8d-ee7d-471c-815f-8a34d8a9106e'
 CLIENT_PASSWORD = 'f75bf148-b1c1-4652-9dd9-13c8ecddc40d'
 CLIENT_PRIVATE_KEY, CLIENT_PUBLIC_KEY = get_keys()
 SESSION_KEY = ''
+session_key_event = threading.Event()
 TTP_PUBLIC_KEY_PEM = ''
 logging.info('Got keys')
 
@@ -126,6 +128,7 @@ def handle_request(data):
     elif action == 'session_key':
         logging.info('Client got session key from ttp')
         SESSION_KEY = decrypt_with_private_key(CLIENT_PRIVATE_KEY, base64.b64decode(data['session_key']))
+        session_key_event.set()
         return {
             'status': 'ok'
         }
@@ -220,6 +223,14 @@ def chain_events():
             'USER_ID': base64.b64encode(encrypted_id).decode(),
         }
     )
+
+    session_key_event.wait()
+    data_from_server = send_to_server({
+        'action': 'message',
+        'data': aes_encrypt(SESSION_KEY, b'Test text: alamakota')
+    })
+    message_from_server = aes_decrypt(SESSION_KEY, data_from_server['data'])
+    logging.info(f'Message from server: {message_from_server}')
 
 
 def main():

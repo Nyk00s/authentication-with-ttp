@@ -4,7 +4,8 @@ import socket
 import hashlib
 import logging
 import threading
-from generator import get_keys, encrypt_with_public_key, get_public_key_pem, decrypt_with_private_key
+from generator import get_keys, encrypt_with_public_key, get_public_key_pem, decrypt_with_private_key, \
+    aes_encrypt, aes_decrypt
 
 logging.basicConfig(filename='server.log', level=logging.DEBUG, filemode='w',
                     format="[%(asctime)s] :: %(levelname)s :: %(message)s")
@@ -90,6 +91,16 @@ def handle_request(json_data):
         return {
             'status': 'ok',
             'message': "Server has been authenticated"
+        }
+    elif action == 'message':
+        logging.info(f"encrypted data: {json_data['data']}")
+        decrypted_message = aes_decrypt(SESSION_KEY, json_data['data'])
+        logging.info(f"decrypted data: {decrypted_message}")
+        response_message = aes_encrypt(SESSION_KEY, decrypted_message)
+        logging.info(f"encrypted data: {response_message}")
+        return {
+            'status': 'ok',
+            'data': response_message
         }
     else:
         logging.info(f"Server got unknown request: {action}")
