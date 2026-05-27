@@ -1,6 +1,8 @@
 import json
+import uuid
 import base64
 import socket
+import secrets
 import hashlib
 import logging
 import threading
@@ -19,8 +21,8 @@ TTP_HOST = "127.0.0.1"
 TTP_PORT = 9000
 HOST = "127.0.0.1"
 PORT = 9001
-SERVER_ID = '92123f60-57a3-4511-9f9a-d83163963ee5'
-SERVER_PASSWORD = '202fe311-559c-4245-9135-188f772453c4'
+SERVER_ID = str(uuid.uuid4())
+SERVER_PASSWORD = secrets.token_hex(16)
 SERVER_PRIVATE_KEY, SERVER_PUBLIC_KEY = get_keys()
 TTP_PUBLIC_KEY_PEM = ''
 SESSION_KEY = ''
@@ -59,6 +61,40 @@ def send_to_ttp(data):
         return {'status': 'error', 'message': str(e)}
 
 
+def send_request(data):
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(10.0)
+            sock.connect((data['HOST'], int(data['PORT'])))
+            sock.sendall((json.dumps(data) + '\n').encode())
+            logging.info(f"Request \'{data.get('action')}\' has been sent to ({data['HOST']})")
+            received_bytes = b''
+            while True:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                received_bytes += chunk
+                if received_bytes.endswith(b'\n'):
+                    break
+
+            if not received_bytes:
+                raise ConnectionError(f"Empty response from {data['HOST']}")
+
+            string_data = received_bytes.decode().strip()
+            logging.info(f'Data from {data["HOST"]} received')
+            logging.debug(f'Data received from {data["HOST"]}: {string_data}')
+            return json.loads(string_data)
+    except (socket.timeout, socket.error) as e:
+        logging.error(f'Network error while communicating with {data["HOST"]}: {e}')
+        return {'status': 'error', 'message': f'Network error: {str(e)}'}
+    except json.JSONDecodeError:
+        logging.error(f'Invalid JSON received from {data["HOST"]}: {received_bytes}')
+        return {'status': 'error', 'message': 'Invalid JSON response'}
+    except Exception as e:
+        logging.exception(f'Unexpected error while communicating with {data["HOST"]}')
+        return {'status': 'error', 'message': str(e)}
+
+
 def handle_request(json_data):
     global SESSION_KEY
     action = json_data.get('action')
@@ -70,7 +106,15 @@ def handle_request(json_data):
         }
     elif action == 'session_key':
         logging.info('Server got session key from ttp')
-        SESSION_KEY = decrypt_with_private_key(SERVER_PRIVATE_KEY, base64.b64decode(json_data['session_key']))
+        SESSION_KEY = decrypt_with_private_key(SERVER_PRIVATE_KEY, base64.b64decode(json_data['server_session_key']))
+        send_request(
+            {
+                'action': 'session_key',
+                'user_session_key': json_data["user_session_key"],
+                "HOST": json_data["USER_HOST"],
+                "PORT": json_data["USER_PORT"]
+            }
+        )
         return {
             'status': 'ok'
         }
@@ -95,6 +139,7 @@ def handle_request(json_data):
     elif action == 'message':
         logging.info(f"encrypted data: {json_data['data']}")
         decrypted_message = aes_decrypt(SESSION_KEY, json_data['data'])
+        decrypted_message += b'ipsa'
         logging.info(f"decrypted data: {decrypted_message}")
         response_message = aes_encrypt(SESSION_KEY, decrypted_message)
         logging.info(f"encrypted data: {response_message}")

@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import time
 import socket
 import base64
 import logging
@@ -101,7 +102,7 @@ def send_request(data):
                 raise ConnectionError(f"Empty response from {data['HOST']}")
 
             string_data = received_bytes.decode().strip()
-            logging.info(f'Data from {data['HOST']} received')
+            logging.info(f'Data from {data["HOST"]} received')
             logging.debug(f'Data received from {data["HOST"]}: {string_data}')
             return json.loads(string_data)
     except (socket.timeout, socket.error) as e:
@@ -115,57 +116,97 @@ def send_request(data):
         return {'status': 'error', 'message': str(e)}
 
 
+def authenticate_user(user_id, server_id):
+    time.sleep(1)
+    data_from_user = send_request(
+        {
+            "action": "authenticate_user",
+            "HOST": REGISTERED_ENTITIES[user_id]["HOST"],
+            "PORT": REGISTERED_ENTITIES[user_id]["PORT"]
+        }
+    )
+    user_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data_from_user['USER_ID'])).decode()
+    if user_id not in REGISTERED_ENTITIES:
+        return {
+            'status': 'error',
+            'message': "User not authenticated"
+        }
+    session_key = os.urandom(32)
+    encrypted_user_session_key = base64.b64encode(
+        encrypt_with_public_key(
+            REGISTERED_ENTITIES[user_id]["public_key"],
+            session_key)).decode()
+    encrypted_server_session_key = base64.b64encode(
+        encrypt_with_public_key(
+            REGISTERED_ENTITIES[server_id]["public_key"],
+            session_key)).decode()
+
+    send_request(
+        {
+            'action': 'session_key',
+            'server_session_key': encrypted_server_session_key,
+            'user_session_key': encrypted_user_session_key,
+            "HOST": REGISTERED_ENTITIES[server_id]["HOST"],
+            "PORT": REGISTERED_ENTITIES[server_id]["PORT"],
+            "USER_HOST": REGISTERED_ENTITIES[user_id]["HOST"],
+            "USER_PORT": REGISTERED_ENTITIES[user_id]["PORT"]
+        }
+    )
+
+
 def handle_authenticate_request(data: dict) -> dict:
     server_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data['SERVER_ID'])).decode()
     user_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data['USER_ID'])).decode()
-    if server_id not in REGISTERED_ENTITIES or user_id not in REGISTERED_ENTITIES:
+    if server_id not in REGISTERED_ENTITIES:
         return {
             'status': 'error',
-            'message': "server or user not registered"
+            'message': "server not registered"
         }
     else:
-        send_request({
-            'action': "server_authenticated",
-            "HOST": REGISTERED_ENTITIES[server_id]["HOST"],
-            "PORT": REGISTERED_ENTITIES[server_id]["PORT"]
-        })
+        # send_request({
+        #     'action': "server_authenticated",
+        #     "HOST": REGISTERED_ENTITIES[server_id]["HOST"],
+        #     "PORT": REGISTERED_ENTITIES[server_id]["PORT"]
+        # })
+        #
+        # data_from_user = send_request(
+        #     {
+        #         "action": "authenticate_user",
+        #         "HOST": REGISTERED_ENTITIES[user_id]["HOST"],
+        #         "PORT": REGISTERED_ENTITIES[user_id]["PORT"]
+        #     }
+        # )
+        t = threading.Thread(target=authenticate_user, args=(user_id, server_id), daemon=True)
+        t.start()
 
-        data_from_user = send_request(
-            {
-                "action": "authenticate_user",
-                "HOST": REGISTERED_ENTITIES[user_id]["HOST"],
-                "PORT": REGISTERED_ENTITIES[user_id]["PORT"]
-            }
-        )
-        user_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data_from_user['USER_ID'])).decode()
-        session_key = os.urandom(32)
-
-        encrypted_user_session_key = base64.b64encode(
-            encrypt_with_public_key(
-                REGISTERED_ENTITIES[user_id]["public_key"],
-                session_key)).decode()
-        encrypted_server_session_key = base64.b64encode(
-            encrypt_with_public_key(
-                REGISTERED_ENTITIES[server_id]["public_key"],
-                session_key)).decode()
-
-        send_request(
-            {
-                'action': 'session_key',
-                'session_key': encrypted_user_session_key,
-                "HOST": REGISTERED_ENTITIES[user_id]["HOST"],
-                "PORT": REGISTERED_ENTITIES[user_id]["PORT"]
-            }
-        )
-
-        send_request(
-            {
-                'action': 'session_key',
-                'session_key': encrypted_server_session_key,
-                "HOST": REGISTERED_ENTITIES[server_id]["HOST"],
-                "PORT": REGISTERED_ENTITIES[server_id]["PORT"]
-            }
-        )
+        # session_key = os.urandom(32)
+        #
+        # encrypted_user_session_key = base64.b64encode(
+        #     encrypt_with_public_key(
+        #         REGISTERED_ENTITIES[user_id]["public_key"],
+        #         session_key)).decode()
+        # encrypted_server_session_key = base64.b64encode(
+        #     encrypt_with_public_key(
+        #         REGISTERED_ENTITIES[server_id]["public_key"],
+        #         session_key)).decode()
+        #
+        # send_request(
+        #     {
+        #         'action': 'session_key',
+        #         'session_key': encrypted_user_session_key,
+        #         "HOST": REGISTERED_ENTITIES[user_id]["HOST"],
+        #         "PORT": REGISTERED_ENTITIES[user_id]["PORT"]
+        #     }
+        # )
+        #
+        # send_request(
+        #     {
+        #         'action': 'session_key',
+        #         'session_key': encrypted_server_session_key,
+        #         "HOST": REGISTERED_ENTITIES[server_id]["HOST"],
+        #         "PORT": REGISTERED_ENTITIES[server_id]["PORT"]
+        #     }
+        # )
 
         return {
             'status': 'ok',

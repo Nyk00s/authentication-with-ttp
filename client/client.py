@@ -1,6 +1,8 @@
 import json
+import uuid
 import socket
 import base64
+import secrets
 import hashlib
 import logging
 import threading
@@ -25,11 +27,12 @@ TTP_PORT = 9000
 SERVER_HOST = '127.0.0.1'
 SERVER_PORT = 9001
 
-CLIENT_ID = 'fcce5e8d-ee7d-471c-815f-8a34d8a9106e'
-CLIENT_PASSWORD = 'f75bf148-b1c1-4652-9dd9-13c8ecddc40d'
+CLIENT_ID = str(uuid.uuid4())
+CLIENT_PASSWORD = secrets.token_hex(16)
 CLIENT_PRIVATE_KEY, CLIENT_PUBLIC_KEY = get_keys()
 SESSION_KEY = ''
 session_key_event = threading.Event()
+server_auth_event = threading.Event()
 TTP_PUBLIC_KEY_PEM = ''
 logging.info('Got keys')
 
@@ -127,12 +130,13 @@ def handle_request(data):
         }
     elif action == 'session_key':
         logging.info('Client got session key from ttp')
-        SESSION_KEY = decrypt_with_private_key(CLIENT_PRIVATE_KEY, base64.b64decode(data['session_key']))
+        SESSION_KEY = decrypt_with_private_key(CLIENT_PRIVATE_KEY, base64.b64decode(data['user_session_key']))
         session_key_event.set()
         return {
             'status': 'ok'
         }
     elif action == 'authenticate_user':
+        server_auth_event.wait()
         return handle_authenticate_user(data)
     else:
         logging.info(f"Client got unknown request: {action}")
@@ -223,7 +227,7 @@ def chain_events():
             'USER_ID': base64.b64encode(encrypted_id).decode(),
         }
     )
-
+    server_auth_event.set()
     session_key_event.wait()
     data_from_server = send_to_server({
         'action': 'message',
