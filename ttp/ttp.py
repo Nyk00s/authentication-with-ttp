@@ -163,51 +163,8 @@ def handle_authenticate_request(data: dict) -> dict:
             'message': "server not registered"
         }
     else:
-        # send_request({
-        #     'action': "server_authenticated",
-        #     "HOST": REGISTERED_ENTITIES[server_id]["HOST"],
-        #     "PORT": REGISTERED_ENTITIES[server_id]["PORT"]
-        # })
-        #
-        # data_from_user = send_request(
-        #     {
-        #         "action": "authenticate_user",
-        #         "HOST": REGISTERED_ENTITIES[user_id]["HOST"],
-        #         "PORT": REGISTERED_ENTITIES[user_id]["PORT"]
-        #     }
-        # )
         t = threading.Thread(target=authenticate_user, args=(user_id, server_id), daemon=True)
         t.start()
-
-        # session_key = os.urandom(32)
-        #
-        # encrypted_user_session_key = base64.b64encode(
-        #     encrypt_with_public_key(
-        #         REGISTERED_ENTITIES[user_id]["public_key"],
-        #         session_key)).decode()
-        # encrypted_server_session_key = base64.b64encode(
-        #     encrypt_with_public_key(
-        #         REGISTERED_ENTITIES[server_id]["public_key"],
-        #         session_key)).decode()
-        #
-        # send_request(
-        #     {
-        #         'action': 'session_key',
-        #         'session_key': encrypted_user_session_key,
-        #         "HOST": REGISTERED_ENTITIES[user_id]["HOST"],
-        #         "PORT": REGISTERED_ENTITIES[user_id]["PORT"]
-        #     }
-        # )
-        #
-        # send_request(
-        #     {
-        #         'action': 'session_key',
-        #         'session_key': encrypted_server_session_key,
-        #         "HOST": REGISTERED_ENTITIES[server_id]["HOST"],
-        #         "PORT": REGISTERED_ENTITIES[server_id]["PORT"]
-        #     }
-        # )
-
         return {
             'status': 'ok',
         }

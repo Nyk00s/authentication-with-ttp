@@ -18,7 +18,7 @@ console_handler.setFormatter(formatter)
 logging.getLogger('').addHandler(console_handler)
 
 
-HOST = '127.0.0.1'
+HOST = '0.0.0.0'
 PORT = 8999
 
 TTP_HOST = '127.0.0.1'
@@ -27,6 +27,7 @@ TTP_PORT = 9000
 SERVER_HOST = '127.0.0.1'
 SERVER_PORT = 9001
 
+REGISTRATION_HOST = 'host.docker.internal'
 CLIENT_ID = str(uuid.uuid4())
 CLIENT_PASSWORD = secrets.token_hex(16)
 CLIENT_PRIVATE_KEY, CLIENT_PUBLIC_KEY = get_keys()
@@ -204,7 +205,7 @@ def chain_events():
             'ID': base64.b64encode(encrypted_id).decode(),
             'password': hashed_password,
             'public_key': client_public_key_pem,
-            'HOST': HOST,
+            'HOST': REGISTRATION_HOST,
             'PORT': PORT
         }
     )

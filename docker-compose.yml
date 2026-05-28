@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+
+  ttp:
+    build:
+      context: .
+      dockerfile: ./ttp/Dockerfile
+    container_name: ttp
+    ports:
+      - "9000:9000"
+    networks:
+      - network
+
+  server:
+    build:
+      context: .
+      dockerfile: ./server/Dockerfile
+    container_name: server
+    ports:
+      - "9001:9001"
+    networks:
+      - network
+    depends_on:
+      - ttp
+
+networks:
+  network:
+    driver: bridge
