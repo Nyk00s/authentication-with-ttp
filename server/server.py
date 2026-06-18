@@ -1,3 +1,14 @@
+"""!
+@file server.py
+@brief Application service Server module.
+@details Implements an independent target network node. Handles automated initialization 
+         with the TTP authority, process handshaking via incoming client connections, 
+         and provides an echo service over symmetric AES channels.
+@author Franciszek Kuczkowski, Nikodem Falkowski
+@version 1.0
+@date 2026-06-06
+"""
+
 import json
 import uuid
 import base64
@@ -9,6 +20,7 @@ import threading
 from generator import get_keys, encrypt_with_public_key, get_public_key_pem, decrypt_with_private_key, \
     aes_encrypt, aes_decrypt
 
+# --- LOGGING ENVIRONMENT SETUP ---
 logging.basicConfig(filename='server.log', level=logging.DEBUG, filemode='w',
                     format="[%(asctime)s] :: %(levelname)s :: %(message)s")
 console_handler = logging.StreamHandler()
@@ -16,7 +28,7 @@ formatter = logging.Formatter("[%(asctime)s] :: %(levelname)s :: %(message)s")
 console_handler.setFormatter(formatter)
 logging.getLogger('').addHandler(console_handler)
 
-
+# --- CONFIGURATION VARIABLES ---
 TTP_HOST = "ttp"
 TTP_PORT = 9000
 HOST = "0.0.0.0"
@@ -30,6 +42,11 @@ SESSION_KEY = ''
 
 
 def send_to_ttp(data):
+    """!
+    @brief Dispatches a synchronous JSON control block to the central TTP instance.
+    @param data Dictionary containing the specific protocol parameters and action.
+    @return A dictionary payload representing the parsed response from the TTP node.
+    """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.settimeout(10.0)
@@ -63,6 +80,11 @@ def send_to_ttp(data):
 
 
 def send_request(data):
+    """!
+    @brief Dispatches an outbound JSON payload to arbitrary host configuration endpoints.
+    @param data Dynamic connection tracker mapping destination target variables.
+    @return Decoded response mapping structure dictionaries.
+    """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.settimeout(10.0)
@@ -97,6 +119,13 @@ def send_request(data):
 
 
 def handle_request(json_data):
+    """!
+    @brief Primary input validation state router resolving commands sent directly to the Server.
+    @details Handles protocol phases including initial confirmation tokens, incoming symmetric 
+             session injections, auth triggers, and payload traffic decryption loops.
+    @param json_data Raw incoming dictionary parameter tracking matrices.
+    @return Control execution message envelopes indicating status responses.
+    """
     global SESSION_KEY
     action = json_data.get('action')
 
@@ -158,6 +187,11 @@ def handle_request(json_data):
 
 
 def handle_client(conn, addr):
+    """!
+    @brief Dedicated processor mapping socket byte operations down into individual threads.
+    @param conn Open network stream socket reference object.
+    @param addr Structural identification tracking tuple (IP, Port).
+    """
     try:
         received_bytes = b''
         while True:
@@ -178,6 +212,9 @@ def handle_client(conn, addr):
 
 
 def listen_for_requests():
+    """!
+    @brief Infinite background listener thread blocking interface endpoints to accept connections.
+    """
     logging.info("Start server requests listener")
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -190,6 +227,12 @@ def listen_for_requests():
 
 
 def chain_events():
+    """!
+    @brief Primary pipeline handling out-of-band initialization and authorization registrations.
+    @details Fetches active authority parameters, registers the node context identity signature, 
+             and resolves fallback logic states if registration identifiers overlap.
+    @exception Exception General crash trap tracking configuration breakdowns during authorization tasks.
+    """
     global TTP_PUBLIC_KEY_PEM
     data_from_ttp = send_to_ttp(
         {
@@ -232,6 +275,9 @@ def chain_events():
 
 
 def main():
+    """!
+    @brief Main entry execution container bootstrapping independent background threads.
+    """
     logging.info("Start server")
     request_listener = threading.Thread(target=listen_for_requests)
     chain_events_thread = threading.Thread(target=chain_events, daemon=True)

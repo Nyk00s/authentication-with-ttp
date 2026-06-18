@@ -1,0 +1,26 @@
+var namespaceclient =
+[
+    [ "ClientGUI", "classclient_1_1_client_g_u_i.html", "classclient_1_1_client_g_u_i" ],
+    [ "handle_authenticate_user", "namespaceclient.html#a1a17cefa41ca1c0e720fd62ab9714842", null ],
+    [ "handle_client", "namespaceclient.html#a53aec9c1529dd760291dd66b13f502cf", null ],
+    [ "handle_request", "namespaceclient.html#a655582f288fbf537878391f24a3e6666", null ],
+    [ "listen_for_requests", "namespaceclient.html#a7ccbfc551cafef134cc3ff3d95ece9e8", null ],
+    [ "main", "namespaceclient.html#a51af30a60f9f02777c6396b8247e356f", null ],
+    [ "send_to_server", "namespaceclient.html#af0391c3187b649d5bd44f09aa0bf6278", null ],
+    [ "send_to_ttp", "namespaceclient.html#a30fbe47ea4d5cc614ae1b8321f3eafd5", null ],
+    [ "CLIENT_ID", "namespaceclient.html#a5f89fd935e31577916edb9fc55964b8e", null ],
+    [ "CLIENT_PASSWORD", "namespaceclient.html#acc9e81280fd39181d2a3bdb68d8071f8", null ],
+    [ "CLIENT_PRIVATE_KEY", "namespaceclient.html#af93d04a8750bf8db1dcb72b5dbae03ce", null ],
+    [ "CLIENT_PUBLIC_KEY", "namespaceclient.html#ad29dd108127cb362debc9f6b118b0cde", null ],
+    [ "HOST", "namespaceclient.html#ab14ae1b3106caa992d15e4debc3e833a", null ],
+    [ "PORT", "namespaceclient.html#acd2f280864b8945bb46e196ed2b0990a", null ],
+    [ "REGISTRATION_HOST", "namespaceclient.html#a0ee972eb40dff5228bcd83a077f0ddf1", null ],
+    [ "server_auth_event", "namespaceclient.html#a2ce21e51ffd51fad02fc1413ce9276cc", null ],
+    [ "SERVER_HOST", "namespaceclient.html#ad5722449efde7cedf5581d610b5ad367", null ],
+    [ "SERVER_PORT", "namespaceclient.html#a25bae662e4f4598c1f02cae96c259950", null ],
+    [ "SESSION_KEY", "namespaceclient.html#a27a56b098ee2cd6eaa59dde276d64add", null ],
+    [ "session_key_event", "namespaceclient.html#a58c925d6153a9d132c525eb93f8bf155", null ],
+    [ "TTP_HOST", "namespaceclient.html#a0a5f08feaae331a4351f0dcf6a0a99f1", null ],
+    [ "TTP_PORT", "namespaceclient.html#a38769cd6b518f8469ed802773119992c", null ],
+    [ "TTP_PUBLIC_KEY_PEM", "namespaceclient.html#a131698fbffe1fc8e3615670092fdd2de", null ]
+];

@@ -1,3 +1,14 @@
+"""!
+@file ttp.py
+@brief Trusted Third Party (TTP) Central Authority module.
+@details Implements a centralized public key infrastructure (PKI) subsystem. Handles 
+         X.509 validation issuance, credential records lookup, and asymmetric distribution 
+         of dual-wrapped symmetric session keys over concurrent thread socket structures.
+@author Franciszek Kuczkowski, Nikodem Falkowski
+@version 1.0
+@date 2026-06-06
+"""
+
 import os
 import sys
 import json
@@ -13,8 +24,9 @@ from datetime import datetime, timezone, timedelta
 from generator import get_keys, get_public_key_pem, get_cert_pem, get_public_key_from_pem, decrypt_with_private_key, \
     get_cert, encrypt_with_public_key
 
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# --- LOGGING ENVIRONMENT SETUP ---
 logging.basicConfig(filename='ttp.log', level=logging.DEBUG, filemode='w',
                     format="[%(asctime)s] :: %(levelname)s :: %(message)s")
 console_handler = logging.StreamHandler()
@@ -22,7 +34,7 @@ formatter = logging.Formatter("[%(asctime)s] :: %(levelname)s :: %(message)s")
 console_handler.setFormatter(formatter)
 logging.getLogger('').addHandler(console_handler)
 
-
+# --- NETWORK AND CRYPTO ASSETS CONFIGURATION ---
 HOST, PORT = '0.0.0.0', 9000
 TTP_PRIVATE_KEY, TTP_PUBLIC_KEY = get_keys()
 TTP_CERT = get_cert(TTP_PRIVATE_KEY, TTP_PUBLIC_KEY, 'TTP_CA')
@@ -30,6 +42,13 @@ REGISTERED_ENTITIES = {}
 
 
 def handle_register(data: dict) -> dict:
+    """!
+    @brief Evaluates entity parameters, constructs, signs, and registers an X.509 identity token certificate.
+    @details Validates the entity name footprint by resolving asymmetric identity tokens through the 
+             local private RSA context key. Locks existing IDs to enforce unique identities.
+    @param data Dictionary containing the encrypted unique ID string, a password string, and public key PEM arrays.
+    @return Encapsulated JSON operational metadata tracking registration states or certificate PEM strings.
+    """
     decrypted_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data['ID'])).decode()
     if decrypted_id in REGISTERED_ENTITIES:
         return {
@@ -68,6 +87,11 @@ def handle_register(data: dict) -> dict:
 
 
 def handle_login(data: dict) -> dict:
+    """!
+    @brief Authenticates a registered system entity matching identity and password database variables.
+    @param data Data envelope containing base64-encoded encrypted identity signatures and authentication passwords.
+    @return Status results mapping a success criteria token coupled directly with the valid original X.509 payload.
+    """
     decrypted_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data['ID'])).decode()
     if decrypted_id in REGISTERED_ENTITIES and \
             REGISTERED_ENTITIES[decrypted_id]['password'] == data['password']:
@@ -83,6 +107,12 @@ def handle_login(data: dict) -> dict:
 
 
 def send_request(data):
+    """!
+    @brief Dispatches synchronous outbound JSON control packets directly to active remote socket interfaces.
+    @param data Structural tracking matrix holding destination IP targets, port attributes, and target action commands.
+    @return Decoded remote server responses or structural exception status code diagnostics on transmission errors.
+    @exception ConnectionError Raised if remote sockets close unexpectedly yielding zero valid byte streams.
+    """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.settimeout(10.0)
@@ -117,6 +147,13 @@ def send_request(data):
 
 
 def authenticate_user(user_id, server_id):
+    """!
+    @brief Executes asymmetric verification steps and handles cross-network delivery of dynamic session keys.
+    @details Asynchronously challenges the client entity to establish valid identities. On success, wraps 
+             a fresh 32-byte pseudorandom symmetric key inside distinct RSA envelopes optimized for both participants.
+    @param user_id Unique identifier key string mapping the client node data context.
+    @param server_id Unique identifier key string mapping the destination application server node context.
+    """
     time.sleep(1)
     data_from_user = send_request(
         {
@@ -155,6 +192,12 @@ def authenticate_user(user_id, server_id):
 
 
 def handle_authenticate_request(data: dict) -> dict:
+    """!
+    @brief Handles cross-entity validation inquiries from servers seeking to securely accept client links.
+    @note Boots an independent execution thread worker to handle deep key wrapping procedures out-of-band.
+    @param data Data object holding asymmetric identity tracking strings for validation targets.
+    @return General structural status code mapping dispatch confirmations.
+    """
     server_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data['SERVER_ID'])).decode()
     user_id = decrypt_with_private_key(TTP_PRIVATE_KEY, base64.b64decode(data['USER_ID'])).decode()
     if server_id not in REGISTERED_ENTITIES:
@@ -171,6 +214,11 @@ def handle_authenticate_request(data: dict) -> dict:
 
 
 def handle_request(data: dict) -> dict:
+    """!
+    @brief Main router function mapping inbound system payloads directly to operational functional modules.
+    @param data Input structural payload data mapping network parameters.
+    @return Response packet map matching functional resolution attributes.
+    """
     action = data.get('action')
 
     if action == 'get_ttp_public_key':
@@ -195,6 +243,11 @@ def handle_request(data: dict) -> dict:
 
 
 def handle_client(conn: socket.socket, addr):
+    """!
+    @brief Threaded network connection socket data transport processor wrapper.
+    @param conn Open socket reference object.
+    @param addr Tuple identifying structural network configuration records (IP, Port).
+    """
     try:
         bytes_data = b""
         while True:
@@ -217,6 +270,11 @@ def handle_client(conn: socket.socket, addr):
 
 
 def main():
+    """!
+    @brief Main runtime loop pinning endpoints to local active port indicators.
+    @details Spins up a persistent socket server topology ready to delegate incoming sessions 
+             to background validation task thread pools.
+    """
     logging.info("Start TTP")
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
