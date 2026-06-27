@@ -78,14 +78,4 @@ On first run, each component generates its own RSA key pair and certificate (sav
 
 ---
 
-## What I'd Improve
-
-This was a learning-focused academic project, so a few things are simplified compared to a production-grade implementation:
-
-- Private keys are stored unencrypted on disk (no passphrase protection).
-- Certificate validation doesn't yet support revocation or full chain verification beyond the single-CA (TTP) model.
-- AES padding uses a simple space-padding scheme rather than a standard like PKCS#7.
-
----
-
 *This project was developed for academic purposes.*
